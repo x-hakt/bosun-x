@@ -1,5 +1,7 @@
 # bosun-x
 
+[![CI](https://github.com/x-hakt/bosun-x/actions/workflows/ci.yml/badge.svg)](https://github.com/x-hakt/bosun-x/actions/workflows/ci.yml)
+
 **Cross-agent handoff and task tracking for projects worked by AI agents.**
 Plain files, one lock, no vendor. A CLI and an MCP server over the same data.
 
@@ -182,6 +184,16 @@ alone?* If not, it doesn't ship. `grep` is a first-class client.
 | data directory | `$BOSUN_DATA`, else `$DATA_DIR`, else the current directory |
 | timezone for stamps | `$BOSUN_TZ`, else `config.yml` → `timezone`, else the system zone |
 | stale threshold | `$BOSUN_STALE_MINUTES`, else `config.yml` → `stale_minutes`, else 30 |
+
+## Development
+
+```
+npm install
+npm test          # node test/run.mjs — library units + the CLI loop + a live MCP handshake
+```
+
+No framework, no network. Each case runs against a throwaway data dir. CI runs the
+same suite on Node 20/22/24 plus a `npm publish --dry-run`.
 
 ## License
 
