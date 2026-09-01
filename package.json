@@ -1,0 +1,46 @@
+{
+  "name": "bosun-x",
+  "version": "0.1.0",
+  "description": "Cross-agent handoff and task tracking for projects worked by AI agents. Plain files, one lock, agent-agnostic. CLI + MCP server.",
+  "type": "module",
+  "bin": {
+    "bosun": "./cli.mjs",
+    "bosun-mcp": "./mcp/server.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "lib/",
+    "mcp/",
+    "skill/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "mcp": "node mcp/server.mjs",
+    "test": "node test/run.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "ai-agents",
+    "handoff",
+    "claude-code",
+    "codex",
+    "context",
+    "task-tracking",
+    "cli"
+  ],
+  "license": "MIT",
+  "homepage": "https://x-hakt.com/locker/bosun",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/x-hakt/bosun-x.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.24.0"
+  }
+}
