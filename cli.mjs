@@ -108,7 +108,7 @@ function usage(message) {
   bosun init [dir]        # add the bosun-x block to this repo's CLAUDE.md / AGENTS.md
 
 Data dir: $BOSUN_DATA, else the current directory. Projects live under <data>/projects/<slug>/.
-Timezone for stamps: $BOSUN_TZ, else bosun.config.json, else the system zone.
+Timezone for stamps: $BOSUN_TZ, else config.yml, else the system zone.
 
 --task couples a checkpoint to one or more tasks.yml entries (e.g. CR-13, or just 13):
 start/checkpoint move them to in_progress, finish moves them to done. Optional — the
