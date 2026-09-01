@@ -6,7 +6,7 @@ import process from "node:process";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { isoTimestamp } from "./lib/time.mjs";
 import { syncStatusBoard, boardIsCurrent, taskPrefixFor, replaceTaskField } from "./lib/board.mjs";
-import { projectsDir as projectsDirOf, staleMinutes as staleMinutesOf } from "./lib/config.mjs";
+import { dataDir, projectsDir as projectsDirOf, staleMinutes as staleMinutesOf } from "./lib/config.mjs";
 
 const sydneyIsoTimestamp = isoTimestamp;
 const projectsDir = projectsDirOf();
@@ -104,6 +104,7 @@ function usage(message) {
   bosun heartbeat <slug> --agent <name>
   bosun status [slug]
   bosun doctor [--fix]
+  bosun setup            # first-run wizard: scaffold the data dir + config.yml
   bosun init [dir]        # add the bosun-x block to this repo's CLAUDE.md / AGENTS.md
 
 Data dir: $BOSUN_DATA, else the current directory. Projects live under <data>/projects/<slug>/.
@@ -528,6 +529,79 @@ async function initRepo(dir) {
   }
 }
 
+async function setupWizard() {
+  if (!process.stdin.isTTY) {
+    console.error("bosun setup is interactive — run it in a terminal.");
+    process.exit(1);
+  }
+  const { createInterface } = await import("node:readline");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let closed = false;
+  rl.once("close", () => {
+    closed = true;
+  });
+  const line = (q) =>
+    new Promise((resolve) => {
+      if (closed) return resolve("");
+      rl.once("close", () => resolve(""));
+      try {
+        rl.question(q, resolve);
+      } catch {
+        resolve("");
+      }
+    });
+  const ask = async (q, dflt) => {
+    const a = (await line(dflt ? `${q}\n  [${dflt}] ` : `${q}\n  `)).trim();
+    return a || dflt || "";
+  };
+  const yes = async (q, dfltYes) => /^y/i.test(await ask(`${q} (${dfltYes ? "Y/n" : "y/N"})`, dfltYes ? "y" : "n"));
+
+  const dir = dataDir();
+  console.log(`\nbosun-x setup — data directory: ${dir}\n`);
+
+  await fs.mkdir(path.join(dir, "projects"), { recursive: true });
+  console.log(`✓ ${path.join(dir, "projects")}/`);
+
+  const systemZone = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ""; }
+  })();
+  const cfg = {};
+  const tz = await ask("Timezone for timestamps (IANA name, blank = system zone)", systemZone);
+  if (tz && tz !== systemZone) cfg.timezone = tz;
+
+  const emails = (await ask("Operator email(s) for sign-in, comma-separated (blank = open on your network)", ""))
+    .split(",").map((s) => s.trim()).filter(Boolean);
+  if (emails.length) cfg.operators = emails;
+
+  if (await yes("\nWill you also run the web dashboard?", false)) {
+    cfg.local_host = await ask("This host's id (a short name for the machine the dashboard runs on)", "home-server");
+    cfg.project_roots = (await ask("Directories to scan for docker-compose files, comma-separated (a trailing /* scans one level in)", "~/stacks, ~/*"))
+      .split(",").map((s) => s.trim()).filter(Boolean);
+    const shared = await ask("One big compose project with many sub-apps? name it, or blank", "");
+    if (shared) cfg.shared_compose_project = shared;
+    const ssh = await ask("ssh config for the least-privilege discovery keys", "~/.ssh/config");
+    if (ssh && ssh !== "~/.ssh/config") cfg.ssh_config = ssh;
+
+    const hostsFile = path.join(dir, "infra", "hosts.yml");
+    try {
+      await fs.access(hostsFile);
+    } catch {
+      await fs.mkdir(path.join(dir, "infra"), { recursive: true });
+      await atomicWrite(hostsFile, dumpYaml({
+        hosts: [{ id: cfg.local_host, name: cfg.local_host, role: "host-node", connection: "local", live_monitored: true }],
+      }));
+      console.log(`✓ ${hostsFile} (skeleton — add remote hosts with an ssh_alias for discovery)`);
+    }
+  }
+
+  const configFile = path.join(dir, "config.yml");
+  await atomicWrite(configFile, "# bosun-x — instance config. Edit here or in the dashboard Settings page.\n" + (Object.keys(cfg).length ? dumpYaml(cfg) : "{}\n"));
+  console.log(`✓ ${configFile}`);
+
+  rl.close();
+  console.log(`\nDone. Try:  bosun status\nThen in a project repo:  bosun init\n`);
+}
+
 const { command, slug, options } = parseArgs(process.argv.slice(2));
 try {
   if (["start", "checkpoint", "finish"].includes(command)) await writeCheckpoint(command, slug, options);
@@ -536,6 +610,7 @@ try {
   else if (command === "heartbeat") await heartbeat(slug, options);
   else if (command === "doctor") await doctor(Boolean(options.fix));
   else if (command === "init") await initRepo(slug);
+  else if (command === "setup") await setupWizard();
   else usage();
 } catch (error) {
   console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);

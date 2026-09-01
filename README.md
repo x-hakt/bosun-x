@@ -68,7 +68,14 @@ git clone https://github.com/x-hakt/bosun-x
 cd bosun-x && npm install && npm link
 ```
 
-Run `bosun` from your data directory, or point `$BOSUN_DATA` at it.
+Then scaffold the data directory and config:
+
+```
+bosun setup
+```
+
+Or run `bosun` from a directory that already has a `projects/` folder, or point
+`$BOSUN_DATA` at one.
 
 ## The loop
 
