@@ -180,8 +180,8 @@ alone?* If not, it doesn't ship. `grep` is a first-class client.
 | | resolution |
 | --- | --- |
 | data directory | `$BOSUN_DATA`, else `$DATA_DIR`, else the current directory |
-| timezone for stamps | `$BOSUN_TZ`, else `bosun.config.json` → `timezone`, else the system zone |
-| stale threshold | `$BOSUN_STALE_MINUTES`, else `bosun.config.json` → `staleMinutes`, else 30 |
+| timezone for stamps | `$BOSUN_TZ`, else `config.yml` → `timezone`, else the system zone |
+| stale threshold | `$BOSUN_STALE_MINUTES`, else `config.yml` → `stale_minutes`, else 30 |
 
 ## License
 
