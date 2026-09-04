@@ -111,7 +111,7 @@ async function bosun(args, data) {
 
 await test("board: deriveTaskPrefix", async () => {
   const { deriveTaskPrefix } = await import("../lib/board.mjs");
-  assert.equal(deriveTaskPrefix("control-room"), "CR");
+  assert.equal(deriveTaskPrefix("bosun-x-dashboard"), "BXD");
   assert.equal(deriveTaskPrefix("x-hakt"), "XH");
   assert.equal(deriveTaskPrefix("jellyfin"), "JEL");
   assert.equal(deriveTaskPrefix("byte-basics-web"), "BBW");
