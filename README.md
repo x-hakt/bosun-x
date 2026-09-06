@@ -126,6 +126,18 @@ bosun doctor --fix           # reconcile the safe cases and regenerate every boa
 whose task never advanced, and a `STATUS.md` board that fell behind `tasks.yml`.
 `--fix` promotes or resets the stray task and rewrites the boards.
 
+## The dashboard (optional)
+
+[`bosun-x-dashboard`](https://github.com/x-hakt/bosun-x-dashboard) is a
+self-hosted web app over the same data directory: every project's spec, task
+board, and handoff rendered and editable, live container and disk state off the
+Docker socket, standards checked rather than claimed, and backup jobs watched for
+a missed run. It also has a **client portal** — a second deployment that gives
+each of your clients a themed, read-mostly view of just the projects and planning
+threads you've shared with them, with reply-back and sign-off. The CLI is the
+discipline; the dashboard is where you look at everything at once. It's a
+separate install and depends on this package.
+
 ## Wiring an agent
 
 **1. The convention, in the repo the agent reads.** From inside a project repo:
