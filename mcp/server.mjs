@@ -21,7 +21,7 @@ import { z } from "zod";
 import { load as loadYaml } from "js-yaml";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { setTaskStatus, taskPrefixFor, syncStatusBoard } from "../lib/board.mjs";
+import { setTaskStatus, taskPrefixFor, syncStatusBoard, taskDisplayKey } from "../lib/board.mjs";
 import { isoTimestamp as sydneyIsoTimestamp } from "../lib/time.mjs";
 import { projectsDir as projectsDirOf } from "../lib/config.mjs";
 
@@ -217,7 +217,7 @@ server.registerTool(
     const open = tasks
       .filter((t) => t.status === "in_progress" || t.status === "todo")
       .sort((a, b) => (a.num ?? 0) - (b.num ?? 0))
-      .map((t) => `- ${prefix}-${t.num} [${t.status}] ${t.title}`);
+      .map((t) => `- ${taskDisplayKey(t, tasks, prefix) ?? `${prefix}-${t.num}`} [${t.status}] ${t.title}`);
 
     return text(
       [
@@ -259,7 +259,7 @@ server.registerTool(
     const rows = (Array.isArray(doc.tasks) ? doc.tasks : [])
       .filter((t) => !status || t.status === status)
       .map((t) => ({
-        key: `${prefix}-${t.num}`,
+        key: taskDisplayKey(t, doc.tasks, prefix) ?? `${prefix}-${t.num}`,
         title: t.title,
         status: t.status,
         parent: t.parent_id ? (doc.tasks.find((p) => p.id === t.parent_id)?.num ?? null) : null,

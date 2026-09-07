@@ -5,7 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { isoTimestamp } from "./lib/time.mjs";
-import { syncStatusBoard, boardIsCurrent, taskPrefixFor, replaceTaskField } from "./lib/board.mjs";
+import { syncStatusBoard, boardIsCurrent, taskPrefixFor, replaceTaskField, resolveTaskRef, taskDisplayKey } from "./lib/board.mjs";
 import { dataDir, projectsDir as projectsDirOf, staleMinutes as staleMinutesOf } from "./lib/config.mjs";
 
 const sydneyIsoTimestamp = isoTimestamp;
@@ -42,21 +42,11 @@ async function applyTaskStatus(dir, slug, refs, targetStatus, now) {
   let text = raw;
   const results = [];
   for (const ref of refs) {
-    const upper = ref.toUpperCase();
-    const keyed = /^([A-Z]+)-(\d+)$/.exec(upper);
-    let num;
-    if (keyed) {
-      if (keyed[1] !== prefix) throw new Error(`task ${ref}: prefix ${keyed[1]} is not ${slug}'s prefix ${prefix}`);
-      num = Number(keyed[2]);
-    } else if (/^\d+$/.test(upper)) {
-      num = Number(upper);
-    } else {
-      throw new Error(`--task value "${ref}" is not a task number or key (e.g. ${prefix}-13 or 13)`);
+    const task = resolveTaskRef(ref, tasks, prefix);
+    if (!task) {
+      throw new Error(`--task value "${ref}" is not a known task ref (e.g. ${prefix}-13, 13, or ${prefix}-2.1) in ${slug}/tasks.yml`);
     }
-
-    const task = tasks.find((entry) => entry.num === num);
-    if (!task) throw new Error(`task ${prefix}-${num} not found in ${slug}/tasks.yml`);
-    const key = `${prefix}-${num}`;
+    const key = taskDisplayKey(task, tasks, prefix) ?? `${prefix}-${task.num}`;
 
     if (task.status === targetStatus) {
       results.push({ key, id: task.id, from: task.status, to: targetStatus, noop: true });
@@ -387,6 +377,25 @@ async function doctor(fix) {
     for (const line of drift.messages) console.log(line);
     if (drift.messages.length && !drift.resolved) failed = true;
     fixes += drift.fixed;
+
+    // BXD-46 — a task whose parent_id doesn't name another task in the same
+    // file: its dotted key can't be derived and it renders as a stray root.
+    // Not auto-fixable (the intended parent is unknowable), so it's always a
+    // report.
+    try {
+      const doc = loadYaml(await fs.readFile(path.join(dir, "tasks.yml"), "utf8")) || {};
+      const list = Array.isArray(doc.tasks) ? doc.tasks : [];
+      const ids = new Set(list.map((t) => t.id));
+      const prefix = await taskPrefixFor(dir, slug);
+      for (const t of list) {
+        if (t.parent_id && !ids.has(t.parent_id)) {
+          failed = true;
+          console.log(`${slug}: task ${prefix}-${t.num} has parent_id ${t.parent_id}, which is not a task in this file`);
+        }
+      }
+    } catch {
+      // no tasks.yml — nothing to check
+    }
 
     const boardStale = !(await boardIsCurrent(dir, slug));
     if (boardStale) {

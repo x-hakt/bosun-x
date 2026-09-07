@@ -147,6 +147,55 @@ await test("board: renderBoardBody empty in-progress + shipped cap", async () =>
   assert.match(body, /… \+3 earlier/);
 });
 
+await test("board: taskDisplayKey — dotted keys for sub-tasks (BXD-46)", async () => {
+  const { taskDisplayKey } = await import("../lib/board.mjs");
+  const tasks = [
+    { id: "r", num: 2, title: "root", status: "todo", created: "2026-01-01" },
+    { id: "a", num: 3, title: "first child", status: "todo", parent_id: "r", created: "2026-01-02" },
+    { id: "b", num: 9, title: "second child", status: "todo", parent_id: "r", created: "2026-01-05" },
+    { id: "c", num: 4, title: "same-day child", status: "todo", parent_id: "r", created: "2026-01-05" },
+    { id: "d", num: 12, title: "grandchild", status: "todo", parent_id: "b", created: "2026-02-01" },
+    { id: "e", num: 1, title: "plain", status: "todo", created: "2026-01-01" },
+    { id: "o", num: 7, title: "orphan", status: "todo", parent_id: "gone", created: "2026-01-01" },
+  ];
+  const key = (id) => taskDisplayKey(tasks.find((t) => t.id === id), tasks, "DEMO");
+  assert.equal(key("r"), "DEMO-2");
+  assert.equal(key("a"), "DEMO-2.1");
+  assert.equal(key("c"), "DEMO-2.2", "same created — num breaks the tie (4 before 9)");
+  assert.equal(key("b"), "DEMO-2.3");
+  assert.equal(key("d"), "DEMO-2.3.1", "arbitrary nesting depth");
+  assert.equal(key("e"), "DEMO-1", "no parent — plain key");
+  assert.equal(key("o"), "DEMO-7", "orphaned parent chain falls back to the flat key");
+});
+
+await test("board: resolveTaskRef — dotted, keyed, and bare refs (BXD-46)", async () => {
+  const { resolveTaskRef } = await import("../lib/board.mjs");
+  const tasks = [
+    { id: "r", num: 2, parent_id: null, created: "2026-01-01" },
+    { id: "a", num: 3, parent_id: "r", created: "2026-01-02" },
+    { id: "b", num: 9, parent_id: "r", created: "2026-01-05" },
+  ];
+  assert.equal(resolveTaskRef("DEMO-2.1", tasks, "DEMO")?.id, "a");
+  assert.equal(resolveTaskRef("2.2", tasks, "DEMO")?.id, "b");
+  assert.equal(resolveTaskRef("DEMO-3", tasks, "DEMO")?.id, "a", "the bare num still resolves a dotted-displayed task");
+  assert.equal(resolveTaskRef("9", tasks, "DEMO")?.id, "b");
+  assert.equal(resolveTaskRef("DEMO-2.5", tasks, "DEMO"), undefined, "ordinal out of range");
+  assert.throws(() => resolveTaskRef("XYZ-2.1", tasks, "DEMO"), /prefix/);
+});
+
+await test("board: renderBoardBody renders sub-tasks dotted (BXD-46)", async () => {
+  const { renderBoardBody } = await import("../lib/board.mjs");
+  const tasks = [
+    { id: "r", num: 2, title: "parent", status: "todo", created: "2026-01-01" },
+    { id: "a", num: 3, title: "child", status: "todo", parent_id: "r", created: "2026-01-02" },
+    { id: "z", num: 5, title: "plain backlog", status: "backlog", created: "2026-01-03" },
+  ];
+  const body = renderBoardBody(tasks, "DEMO", "x");
+  assert.match(body, /- DEMO-2 — parent/);
+  assert.match(body, /- DEMO-2\.1 — child/);
+  assert.match(body, /\*\*Backlog\*\* \(1\) — DEMO-5/);
+});
+
 await test("board: replaceTaskField is surgical", async () => {
   const { replaceTaskField } = await import("../lib/board.mjs");
   const next = replaceTaskField(TASKS_FIXTURE, "demo-2", "status", "in_progress");
@@ -285,6 +334,51 @@ await test("cli: doctor --fix reconciles an orphaned in_progress task", async ()
   assert.match(fix.stdout, /1 correction applied/);
   const tasks = await readFile(path.join(proj, "tasks.yml"), "utf8");
   assert.match(tasks, /num: 1\n {4}title: Wire the widget\n {4}status: todo/);
+});
+
+await test("cli: --task accepts a dotted sub-task ref; doctor flags an orphan parent (BXD-46)", async () => {
+  const { dir, proj } = await makeDataDir();
+  const nested = `seq: 4
+tasks:
+  - id: p
+    num: 2
+    title: Parent task
+    status: todo
+    depends_on: []
+    created: '2026-01-01T00:00:00.000+00:00'
+    updated: '2026-01-01T00:00:00.000+00:00'
+  - id: c1
+    num: 3
+    title: First child
+    status: backlog
+    parent_id: p
+    depends_on: []
+    created: '2026-01-02T00:00:00.000+00:00'
+    updated: '2026-01-02T00:00:00.000+00:00'
+  - id: c2
+    num: 4
+    title: Second child
+    status: backlog
+    parent_id: p
+    depends_on: []
+    created: '2026-01-03T00:00:00.000+00:00'
+    updated: '2026-01-03T00:00:00.000+00:00'
+`;
+  await writeFile(path.join(proj, "tasks.yml"), nested);
+
+  const start = await bosun(["start", "demo", "--agent", "T", "--summary", "s", "--task", "DEMO-2.2"], dir);
+  assert.equal(start.code, 0, start.stderr);
+  assert.match(start.stdout, /DEMO-2\.2: backlog → in_progress/);
+  const tasks = await readFile(path.join(proj, "tasks.yml"), "utf8");
+  assert.match(tasks, /num: 4\n {4}title: Second child\n {4}status: in_progress/, "the dotted ref hit c2, not c1");
+  const status = await readFile(path.join(proj, "STATUS.md"), "utf8");
+  assert.match(status, /- DEMO-2\.2 — Second child/, "board renders it dotted");
+
+  // now orphan a child and confirm doctor reports it
+  await writeFile(path.join(proj, "tasks.yml"), nested.replace("parent_id: p\n    depends_on: []\n    created: '2026-01-02", "parent_id: nope\n    depends_on: []\n    created: '2026-01-02"));
+  const doc = await bosun(["doctor"], dir);
+  assert.equal(doc.code, 1);
+  assert.match(doc.stdout, /DEMO-3 has parent_id nope, which is not a task in this file/);
 });
 
 await test("cli: init adds and then idempotently keeps the agent block", async () => {
