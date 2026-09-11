@@ -1,9 +1,10 @@
 {
   "name": "bosun-x",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-agent handoff and task tracking for projects worked by AI agents. Plain files, one lock, agent-agnostic. CLI + MCP server.",
   "type": "module",
   "bin": {
+    "bosun-x": "cli.mjs",
     "bosun": "cli.mjs",
     "bosun-mcp": "mcp/server.mjs"
   },
