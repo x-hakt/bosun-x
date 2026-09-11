@@ -4,8 +4,8 @@
   "description": "Cross-agent handoff and task tracking for projects worked by AI agents. Plain files, one lock, agent-agnostic. CLI + MCP server.",
   "type": "module",
   "bin": {
-    "bosun": "./cli.mjs",
-    "bosun-mcp": "./mcp/server.mjs"
+    "bosun": "cli.mjs",
+    "bosun-mcp": "mcp/server.mjs"
   },
   "files": [
     "cli.mjs",
