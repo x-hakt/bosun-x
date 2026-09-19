@@ -134,8 +134,10 @@ board, and handoff rendered and editable, live container and disk state off the
 Docker socket, standards checked rather than claimed, and backup jobs watched for
 a missed run. It also has a **client portal** — a second deployment that gives
 each of your clients a themed, read-mostly view of just the projects and planning
-threads you've shared with them, with reply-back and sign-off. The CLI is the
-discipline; the dashboard is where you look at everything at once. It's a
+threads you've shared with them, with reply-back and sign-off. It's fully
+responsive too, with an off-canvas mobile nav, so jotting down a new idea or
+checking a task board doesn't have to wait until you're back at a desk. The CLI
+is the discipline; the dashboard is where you look at everything at once. It's a
 separate install and depends on this package.
 
 ## Wiring an agent
