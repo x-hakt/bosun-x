@@ -3,6 +3,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { isoTimestamp } from "./lib/time.mjs";
 import { syncStatusBoard, boardIsCurrent, taskPrefixFor, replaceTaskField, resolveTaskRef, taskDisplayKey } from "./lib/board.mjs";
@@ -96,6 +98,8 @@ function usage(message) {
   bosun doctor [--fix]
   bosun setup            # first-run wizard: scaffold the data dir + config.yml
   bosun init [dir]        # add the bosun-x block to this repo's CLAUDE.md / AGENTS.md
+  bosun dashboard [--demo] [--data <dir>] [--port <n>] [--host <addr>] [--open]
+                          # the web dashboard over this data dir (bosun-x-dashboard)
 
 Data dir: $BOSUN_DATA, else the current directory. Projects live under <data>/projects/<slug>/.
 Timezone for stamps: $BOSUN_TZ, else config.yml, else the system zone.
@@ -608,20 +612,57 @@ async function setupWizard() {
   console.log(`✓ ${configFile}`);
 
   rl.close();
-  console.log(`\nDone. Try:  bosun status\nThen in a project repo:  bosun init\n`);
+  console.log(`\nDone. Try:  bosun status\nSee it all:  bosun dashboard\nThen in a project repo:  bosun init\n`);
 }
 
-const { command, slug, options } = parseArgs(process.argv.slice(2));
-try {
-  if (["start", "checkpoint", "finish"].includes(command)) await writeCheckpoint(command, slug, options);
-  else if (command === "status") await showStatus(slug);
-  else if (command === "resume") await resume(slug);
-  else if (command === "heartbeat") await heartbeat(slug, options);
-  else if (command === "doctor") await doctor(Boolean(options.fix));
-  else if (command === "init") await initRepo(slug);
-  else if (command === "setup") await setupWizard();
-  else usage();
-} catch (error) {
-  console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
+// `bosun dashboard`: run the web dashboard (the separate bosun-x-dashboard package) over
+// the same data dir. Uses an installed copy when there is one (a sibling global install
+// or a local dependency), otherwise fetches the matching version with npx. The dashboard
+// resolves the data dir exactly as this CLI does ($BOSUN_DATA, else the current folder),
+// so every argument passes straight through.
+const DASHBOARD_RANGE = "^0.2.0";
+
+function installedDashboardBin() {
+  // A specific launcher (a dev checkout, or tests) wins over the resolved package.
+  if (process.env.BOSUN_DASHBOARD_BIN) return process.env.BOSUN_DASHBOARD_BIN;
+  try {
+    const pkgJson = createRequire(import.meta.url).resolve("bosun-x-dashboard/package.json");
+    return path.join(path.dirname(pkgJson), "bin", "bosun-x-dashboard.mjs");
+  } catch {
+    return undefined;
+  }
+}
+
+function runDashboard(args) {
+  const bin = installedDashboardBin();
+  const [cmd, cmdArgs] = bin
+    ? [process.execPath, [bin, ...args]]
+    : [process.platform === "win32" ? "npx.cmd" : "npx", ["--yes", `bosun-x-dashboard@${DASHBOARD_RANGE}`, ...args]];
+  if (!bin) console.error(`bosun: fetching bosun-x-dashboard@${DASHBOARD_RANGE} (install it with \`npm install -g bosun-x-dashboard\` to skip this)`);
+  const child = spawn(cmd, cmdArgs, { stdio: "inherit" });
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));
+  child.on("error", (error) => {
+    console.error(`Error: couldn't start the dashboard: ${error.message}`);
+    process.exit(1);
+  });
+  child.on("exit", (code, signal) => process.exit(signal ? 0 : code ?? 0));
+}
+
+if (process.argv[2] === "dashboard") {
+  runDashboard(process.argv.slice(3));
+} else {
+  const { command, slug, options } = parseArgs(process.argv.slice(2));
+  try {
+    if (["start", "checkpoint", "finish"].includes(command)) await writeCheckpoint(command, slug, options);
+    else if (command === "status") await showStatus(slug);
+    else if (command === "resume") await resume(slug);
+    else if (command === "heartbeat") await heartbeat(slug, options);
+    else if (command === "doctor") await doctor(Boolean(options.fix));
+    else if (command === "init") await initRepo(slug);
+    else if (command === "setup") await setupWizard();
+    else usage();
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
 }

@@ -399,6 +399,25 @@ await test("cli: init adds and then idempotently keeps the agent block", async (
   assert.match(second.stdout, /already up to date/);
 });
 
+await test("cli: dashboard passes every argument through to the dashboard launcher", async () => {
+  const { dir } = await makeDataDir();
+  const fake = path.join(dir, "fake-dashboard.mjs");
+  await writeFile(
+    fake,
+    'console.log(JSON.stringify({ argv: process.argv.slice(2), data: process.env.BOSUN_DATA })); process.exit(3);\n',
+  );
+  process.env.BOSUN_DASHBOARD_BIN = fake;
+  try {
+    const run = await bosun(["dashboard", "--demo", "--port", "4001", "--open"], dir);
+    assert.equal(run.code, 3, "exit code propagates");
+    const seen = JSON.parse(run.stdout.trim());
+    assert.deepEqual(seen.argv, ["--demo", "--port", "4001", "--open"], "flags reach it untouched (no CLI parsing)");
+    assert.equal(seen.data, dir, "same data dir as the CLI");
+  } finally {
+    delete process.env.BOSUN_DASHBOARD_BIN;
+  }
+});
+
 // ---------------------------------------------------------------- MCP server
 
 await test("mcp: stdio handshake, tools/list, tools/call", async () => {

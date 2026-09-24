@@ -2,14 +2,49 @@
 
 [![CI](https://github.com/x-hakt/bosun-x/actions/workflows/ci.yml/badge.svg)](https://github.com/x-hakt/bosun-x/actions/workflows/ci.yml)
 
-**Cross-agent handoff and task tracking for projects worked by AI agents.**
-Plain files, one lock, no vendor. A CLI and an MCP server over the same data.
+**One page for everything your AI agents are working on, and the tools that keep
+it honest.** A self-hosted dashboard for your projects, task boards, agent
+handoffs, servers and backups, plus a CLI and an MCP server your agents use to
+check in and out. Plain files underneath, one lock, no vendor.
 
-The bosun is the hand who keeps the ship and crew in working order — rigging,
+```bash
+npx bosun-x dashboard --demo      # the dashboard on sample data: http://localhost:3010
+```
+
+The bosun is the hand who keeps the ship and crew in working order: rigging,
 stores, the watch. `bosun-x` does that for a set of projects you build with
-Claude, Codex, Cursor, or a mix: it keeps a record of what's actually done, hands
-the next session a clean starting point, and stops the task board drifting away
-from reality.
+Claude, Codex, Cursor, or a mix. It keeps a record of what's actually done, hands
+the next session a clean starting point, stops the task board drifting away from
+reality, and shows you all of it at once.
+
+![A project's page in the dashboard: task board, active handoff, spec and docs (demo data)](https://x-hakt.com/shots/bosun-project.webp)
+
+## The dashboard
+
+`bosun dashboard` (or `npx bosun-x-dashboard`) runs a web app over your data folder:
+
+- **Projects**: each project's task board, spec, status and handoff log, rendered
+  from the files and editable in place.
+- **Handoff**: which agent holds each project, what it last did, what's next, and a
+  staleness clock.
+- **Servers and capacity**: live containers grouped into projects; each server's
+  RAM, CPU and disk split by project with typical (p95) and peak usage; a move
+  simulator that says whether a project would fit on another server.
+- **Standards**: checks such as "has a git remote", "has a spec", "backup fresh",
+  worked out from git, the filesystem and Docker rather than ticked by hand.
+- **Backups**: jobs that ran, jobs that quietly didn't, restore runbooks, a weekly
+  restore test.
+- **Planning**: ideas and sub-ideas with a thread each, graduating into projects.
+- **Client portal** (optional): a second deployment that shows each client only the
+  work you've shared with them, with replies and sign-off.
+- It works on a phone.
+
+![Capacity: each server's RAM, CPU and disk split by project (demo data)](https://x-hakt.com/shots/bosun-capacity.webp)
+
+It binds to `localhost` with no sign-in until you configure one (Google, GitHub or
+OIDC). Full instructions, including running it as a service or from the Docker
+image: **[getting started](https://github.com/x-hakt/bosun-x-dashboard/blob/main/docs/getting-started.md)**.
+The dashboard's source is [x-hakt/bosun-x-dashboard](https://github.com/x-hakt/bosun-x-dashboard).
 
 ---
 
@@ -28,8 +63,8 @@ If you build software with AI agents across more than one repo, you know the tax
   and the next one has to reconstruct — or worse, re-decide — what was already
   settled.
 
-`bosun-x` is the small amount of structure that fixes this without a database, a
-web app, or a subscription.
+`bosun-x` is the small amount of structure that fixes this without a database or
+a subscription.
 
 ## Who it's for
 
@@ -57,27 +92,24 @@ picking work back up has started to hurt.
 
 ## Install
 
-Node 20+. Once it's on npm:
+Node 20+.
 
 ```
-npm i -g bosun-x          # or: npx bosun-x <command>
+npm i -g bosun-x                     # the CLI + MCP server (or: npx bosun-x <command>)
+npm i -g bosun-x-dashboard           # the dashboard (optional: `bosun dashboard` fetches it on demand)
 ```
 
-Until then, from source:
+Then scaffold a data directory and config, and open the dashboard on it:
 
 ```
-git clone https://github.com/x-hakt/bosun-x
-cd bosun-x && npm install && npm link
-```
-
-Then scaffold the data directory and config:
-
-```
+mkdir ~/bosun-data && cd ~/bosun-data
 bosun setup
+bosun dashboard
 ```
 
 Or run `bosun` from a directory that already has a `projects/` folder, or point
-`$BOSUN_DATA` at one.
+`$BOSUN_DATA` at one. From source instead: `git clone https://github.com/x-hakt/bosun-x
+&& cd bosun-x && npm install && npm link`.
 
 ## The loop
 
@@ -125,23 +157,6 @@ bosun doctor --fix           # reconcile the safe cases and regenerate every boa
 `doctor` flags a task stuck `in_progress` with no active handoff, a live handoff
 whose task never advanced, and a `STATUS.md` board that fell behind `tasks.yml`.
 `--fix` promotes or resets the stray task and rewrites the boards.
-
-## The dashboard (optional)
-
-[`bosun-x-dashboard`](https://github.com/x-hakt/bosun-x-dashboard) is a
-self-hosted web app over the same data directory: every project's spec, task
-board, and handoff rendered and editable, live container and disk state off the
-Docker socket, standards checked rather than claimed, and backup jobs watched for
-a missed run. It also has a **client portal** — a second deployment that gives
-each of your clients a themed, read-mostly view of just the projects and planning
-threads you've shared with them, with reply-back and sign-off. It's fully
-responsive too, with an off-canvas mobile nav, so jotting down a new idea or
-checking a task board doesn't have to wait until you're back at a desk. Its
-Servers page shows every server's RAM, CPU and disk split by project, with typical
-(p95) and peak usage from a 5-minute sampler, and a move simulator that tells you
-whether a project would fit on another server before you try it. The CLI is the
-discipline; the dashboard is where you look at everything at once. It's a separate
-install and depends on this package.
 
 ## Wiring an agent
 
