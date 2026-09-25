@@ -442,6 +442,18 @@ await test("activity: validates safe fields, appends, and deduplicates", async (
   assert.match(wrongTask.stderr, /unknown task/);
 });
 
+await test("activity: handoff can attach a known session to its task", async () => {
+  const { dir } = await makeDataDir();
+  const start = await bosun(["start", "demo", "--agent", "Codex", "--summary", "Build", "--task", "DEMO-1", "--session", "session-42"], dir);
+  assert.equal(start.code, 0, start.stderr);
+  const day = new Date().toISOString().slice(0, 10);
+  const raw = await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8");
+  const event = JSON.parse(raw.trim());
+  assert.equal(event.kind, "assignment");
+  assert.equal(event.session, "session-42");
+  assert.equal(event.task, "DEMO-1");
+});
+
 await test("mcp: stdio handshake, tools/list, tools/call", async () => {
   const { dir } = await makeDataDir();
   const server = spawn("node", [MCP], {
