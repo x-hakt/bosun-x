@@ -9,6 +9,7 @@ import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { isoTimestamp } from "./lib/time.mjs";
 import { syncStatusBoard, boardIsCurrent, taskPrefixFor, replaceTaskField, resolveTaskRef, taskDisplayKey } from "./lib/board.mjs";
 import { dataDir, projectsDir as projectsDirOf, staleMinutes as staleMinutesOf } from "./lib/config.mjs";
+import { appendEvent } from "./lib/activity.mjs";
 
 const sydneyIsoTimestamp = isoTimestamp;
 const projectsDir = projectsDirOf();
@@ -94,6 +95,9 @@ function usage(message) {
   bosun finish <slug> --agent <name> --done <work> --state <state> --next <step> [--tests <result>] [--task <KEY[,KEY]>]
   bosun resume <slug>
   bosun heartbeat <slug> --agent <name>
+  bosun event --provider <claude|codex|bosun|job> --session <id> --kind <kind>
+              [--project <slug>] [--task <KEY>] [--parent <id>] [--turn <id>]
+              [--host <slug>] [--id <event-id>] [--at <ISO time>]
   bosun status [slug]
   bosun doctor [--fix]
   bosun setup            # first-run wizard: scaffold the data dir + config.yml
@@ -657,6 +661,11 @@ if (process.argv[2] === "dashboard") {
     else if (command === "status") await showStatus(slug);
     else if (command === "resume") await resume(slug);
     else if (command === "heartbeat") await heartbeat(slug, options);
+    else if (command === "event") {
+      requireOptions(options, ["provider", "session", "kind"]);
+      const result = await appendEvent(options);
+      console.log(result.duplicate ? "duplicate" : result.event.id);
+    }
     else if (command === "doctor") await doctor(Boolean(options.fix));
     else if (command === "init") await initRepo(slug);
     else if (command === "setup") await setupWizard();
