@@ -27,7 +27,12 @@ const data = candidates.find((dir) => fs.existsSync(path.join(dir, "projects")))
 if (!data) process.exit(0);
 const normalizedCwd = typeof payload.cwd === "string" ? payload.cwd.replace(/^\/home\/thrax\/devserver\//, "/home/thrax/") : "";
 let project;
+if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(process.env.BOSUN_PROJECT || "")
+    && fs.existsSync(path.join(data, "projects", process.env.BOSUN_PROJECT, "project.yml"))) {
+  project = process.env.BOSUN_PROJECT;
+}
 for (const slug of fs.readdirSync(path.join(data, "projects"))) {
+  if (project) break;
   try {
     const record = fs.readFileSync(path.join(data, "projects", slug, "project.yml"), "utf8");
     const projectPath = record.match(/^path:\s*(.+)\s*$/m)?.[1]?.replace(/^['"]|['"]$/g, "");
