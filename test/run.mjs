@@ -420,6 +420,23 @@ await test("cli: dashboard passes every argument through to the dashboard launch
 
 // ---------------------------------------------------------------- MCP server
 
+await test("activity: validates safe fields, appends, and deduplicates", async () => {
+  const { dir } = await makeDataDir();
+  const event = ["event", "--provider", "codex", "--session", "session-1", "--kind", "turn_start", "--id", "event-1", "--project", "demo"];
+  const first = await bosun(event, dir);
+  assert.equal(first.code, 0, first.stderr);
+  const repeat = await bosun(event, dir);
+  assert.equal(repeat.code, 0, repeat.stderr);
+  assert.match(repeat.stdout, /duplicate/);
+  const day = new Date().toISOString().slice(0, 10);
+  const raw = await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8");
+  assert.equal(raw.trim().split("\n").length, 1);
+  assert.equal(JSON.parse(raw).project, "demo");
+  const unsafe = await bosun([...event, "--prompt", "secret"], dir);
+  assert.equal(unsafe.code, 1);
+  assert.match(unsafe.stderr, /unsafe event field/);
+});
+
 await test("mcp: stdio handshake, tools/list, tools/call", async () => {
   const { dir } = await makeDataDir();
   const server = spawn("node", [MCP], {

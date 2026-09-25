@@ -27,6 +27,9 @@ reality, and shows you all of it at once.
   from the files and editable in place.
 - **Handoff**: which agent holds each project, what it last did, what's next, and a
   staleness clock.
+- **Crew activity** (optional): a live session roster, recent events and a public-safe
+  pirate ship view. Use `bosun event` or the Claude/Codex lifecycle hook in
+  `hooks/activity.mjs`; see the dashboard's `docs/activity.md` for setup and privacy.
 - **Servers and capacity**: live containers grouped into projects; each server's
   RAM, CPU and disk split by project with typical (p95) and peak usage; a move
   simulator that says whether a project would fit on another server.
