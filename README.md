@@ -141,6 +141,11 @@ On the next session — **before touching anything**:
 bosun resume my-app
 ```
 
+If you use the optional activity hooks, launch an agent with `BOSUN_TASK=API-7`
+to attach its events to a task. When its provider session ID is known, `bosun
+start` or `bosun checkpoint` can also take `--session <id>` to record that
+assignment without guessing from a project-wide handoff.
+
 That prints the bounded snapshot and nothing else. Read it, check `git status`
 and recent commits, and pick up where the last hand left off. Don't load the full
 `HANDOFF.md` history unless the snapshot is missing a specific decision.

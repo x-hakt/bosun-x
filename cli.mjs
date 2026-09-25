@@ -90,8 +90,8 @@ function reportTransitions(results) {
 function usage(message) {
   if (message) console.error(`Error: ${message}\n`);
   console.error(`Usage:
-  bosun start <slug> --agent <name> --summary <work> [--task <KEY[,KEY]>]
-  bosun checkpoint <slug> --agent <name> --done <work> --state <state> --next <step> [--tests <result>] [--task <KEY[,KEY]>]
+  bosun start <slug> --agent <name> --summary <work> [--task <KEY[,KEY]>] [--session <id>]
+  bosun checkpoint <slug> --agent <name> --done <work> --state <state> --next <step> [--tests <result>] [--task <KEY[,KEY]>] [--session <id>]
   bosun finish <slug> --agent <name> --done <work> --state <state> --next <step> [--tests <result>] [--task <KEY[,KEY]>]
   bosun resume <slug>
   bosun heartbeat <slug> --agent <name>
@@ -280,6 +280,15 @@ async function writeCheckpoint(command, slug, options) {
     reportTransitions(transitions);
     if (board?.changed) console.log("  STATUS.md task board refreshed");
     if (board?.error) console.log(`  warning: could not refresh STATUS.md board (${board.error.message})`);
+    const provider = String(options.agent).toLowerCase();
+    const session = options.session || process.env.BOSUN_SESSION_ID;
+    if (command !== "finish" && session && taskKeys.length && ["codex", "claude"].includes(provider)) {
+      try {
+        await appendEvent({ provider, session, kind: "assignment", project: slug, task: taskKeys[0] });
+      } catch (error) {
+        console.log(`  warning: activity assignment was not recorded (${error.message})`);
+      }
+    }
     if (command === "finish" && !refs.length && carried.length) {
       console.log(`  note: this handoff was carrying ${carried.join(", ")} — pass --task to mark done, or set the status directly`);
     }
