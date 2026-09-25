@@ -48,15 +48,31 @@ const args = ["event", "--provider", provider, "--session", agent || payload.ses
 if (agent) args.push("--parent", payload.session_id);
 if (typeof payload.turn_id === "string") args.push("--turn", payload.turn_id);
 if (project) args.push("--project", project);
+if (project && /^[A-Z][A-Z0-9]*-\d+(?:\.\d+)?$/.test(process.env.BOSUN_TASK || "")) {
+  args.push("--task", process.env.BOSUN_TASK);
+}
 const remote = data.includes("/devserver/");
 const cli = remote ? "/home/thrax/unified-services/bosun-x/cli.mjs" : path.join(home, "unified-services/bosun-x/cli.mjs");
-const command = remote ? ["ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "devserver", "env", "BOSUN_DATA=/home/thrax/unified-services/bosun-x-data", "node", cli, ...args]]
-  : ["node", [cli, ...args]];
+const commandFor = (eventArgs) => remote
+  ? ["ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "devserver", "env", "BOSUN_DATA=/home/thrax/unified-services/bosun-x-data", "node", cli, ...eventArgs]]
+  : ["node", [cli, ...eventArgs]];
+const deliver = (eventArgs) => {
+  const [command, commandArgs] = commandFor(eventArgs);
+  execFileSync(command, commandArgs, { timeout: 3000, stdio: "pipe", maxBuffer: 16_384 });
+};
 let delivered = false;
 try {
-  execFileSync(command[0], command[1], { timeout: 3000, stdio: "ignore" });
+  deliver(args);
   delivered = true;
-} catch {
+} catch (error) {
+  // A stale/typoed task key should lose the association, not every event.
+  if (args.includes("--task") && /unknown task|prefix .* is not/.test(String(error.stderr || ""))) {
+    const at = args.indexOf("--task");
+    args.splice(at, 2);
+    try { deliver(args); delivered = true; } catch { /* transport failure is spooled below */ }
+  }
+}
+if (!delivered) {
   // Preserve a bounded local retry record. A later hook flushes the spool.
   try {
     const spool = path.join(home, ".local", "state", "bosun-x", "activity-spool");
@@ -72,9 +88,7 @@ try {
     const file = path.join(spool, name);
     const saved = JSON.parse(fs.readFileSync(file, "utf8"));
     if (!Array.isArray(saved)) continue;
-    const retry = remote ? ["ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "devserver", "env", "BOSUN_DATA=/home/thrax/unified-services/bosun-x-data", "node", cli, ...saved]]
-      : ["node", [cli, ...saved]];
-    try { execFileSync(retry[0], retry[1], { timeout: 3000, stdio: "ignore" }); fs.unlinkSync(file); }
+    try { deliver(saved); fs.unlinkSync(file); }
     catch { break; }
   }
 } catch { /* no spool yet */ }

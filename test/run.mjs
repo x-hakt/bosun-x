@@ -435,6 +435,11 @@ await test("activity: validates safe fields, appends, and deduplicates", async (
   const unsafe = await bosun([...event, "--prompt", "secret"], dir);
   assert.equal(unsafe.code, 1);
   assert.match(unsafe.stderr, /unsafe event field/);
+  const assigned = await bosun(["event", "--provider", "claude", "--session", "session-2", "--kind", "assignment", "--project", "demo", "--task", "DEMO-1"], dir);
+  assert.equal(assigned.code, 0, assigned.stderr);
+  const wrongTask = await bosun(["event", "--provider", "claude", "--session", "session-3", "--kind", "assignment", "--project", "demo", "--task", "DEMO-999"], dir);
+  assert.equal(wrongTask.code, 1);
+  assert.match(wrongTask.stderr, /unknown task/);
 });
 
 await test("mcp: stdio handshake, tools/list, tools/call", async () => {
