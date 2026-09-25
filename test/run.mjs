@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -452,6 +452,25 @@ await test("activity: handoff can attach a known session to its task", async () 
   assert.equal(event.kind, "assignment");
   assert.equal(event.session, "session-42");
   assert.equal(event.task, "DEMO-1");
+});
+
+await test("activity: local Codex hook writes to Bosun data from an unrelated working directory", async () => {
+  const { dir } = await makeDataDir();
+  const hook = fileURLToPath(new URL("../hooks/activity.mjs", import.meta.url));
+  const run = spawnSync("node", [hook, "codex"], {
+    cwd: os.tmpdir(),
+    env: { ...process.env, BOSUN_DATA: dir, BOSUN_PROJECT: "demo", BOSUN_TASK: "DEMO-1" },
+    input: JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: "hook-test", cwd: os.tmpdir(), prompt: "private prompt must not be stored" }),
+    encoding: "utf8",
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const day = new Date().toISOString().slice(0, 10);
+  const raw = await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8");
+  const event = JSON.parse(raw.trim());
+  assert.equal(event.kind, "turn_start");
+  assert.equal(event.project, "demo");
+  assert.equal(event.task, "DEMO-1");
+  assert.doesNotMatch(raw, /private prompt/);
 });
 
 await test("mcp: stdio handshake, tools/list, tools/call", async () => {
