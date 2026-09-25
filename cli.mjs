@@ -633,7 +633,7 @@ async function setupWizard() {
 // or a local dependency), otherwise fetches the matching version with npx. The dashboard
 // resolves the data dir exactly as this CLI does ($BOSUN_DATA, else the current folder),
 // so every argument passes straight through.
-const DASHBOARD_RANGE = "^0.2.0";
+const DASHBOARD_RANGE = "^0.3.0";
 
 function installedDashboardBin() {
   // A specific launcher (a dev checkout, or tests) wins over the resolved package.
