@@ -1,6 +1,6 @@
 {
   "name": "bosun-x",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A self-hosted dashboard for everything your AI agents are working on, plus the CLI and MCP server they use to hand off work. Plain files, one lock, agent-agnostic.",
   "type": "module",
   "bin": {

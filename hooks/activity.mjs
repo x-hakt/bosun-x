@@ -58,7 +58,13 @@ const commandFor = (eventArgs) => remote
   : ["node", [cli, ...eventArgs]];
 const deliver = (eventArgs) => {
   const [command, commandArgs] = commandFor(eventArgs);
-  execFileSync(command, commandArgs, { timeout: 3000, stdio: "pipe", maxBuffer: 16_384 });
+  // The hook inherits the agent's working directory, which is usually a project
+  // repo rather than the Bosun data root. Pass the resolved data directory to
+  // the local CLI just as the remote SSH command does.
+  execFileSync(command, commandArgs, {
+    timeout: 3000, stdio: "pipe", maxBuffer: 16_384,
+    env: remote ? process.env : { ...process.env, BOSUN_DATA: data },
+  });
 };
 let delivered = false;
 try {
