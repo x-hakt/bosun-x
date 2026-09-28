@@ -1,3 +1,4 @@
 node_modules/
 *.tmp-*
 .handoff.lock/
+activity.local.json

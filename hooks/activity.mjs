@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const provider = process.argv[2];
 if (!["claude", "codex"].includes(provider)) process.exit(0);
@@ -22,7 +23,18 @@ const kind = payload.hook_event_name === "SessionStart" && payload.source === "c
 if (!kind || typeof payload.session_id !== "string") process.exit(0);
 
 const home = os.homedir();
-const candidates = [process.env.BOSUN_DATA, path.join(home, "my-server/unified-services/bosun-x-data"), path.join(home, "unified-services/bosun-x-data")].filter(Boolean);
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// Optional, never committed: activity.local.json beside this checkout (or $BOSUN_ACTIVITY_CONFIG).
+// For a workstation that reads a server's checkout through a network mount:
+//   { "mounts": [{ "local": "/home/me/server/", "remote": "/home/me/", "ssh": "my-server" }] }
+// Paths under `local` are the server's paths under `remote`, and events are delivered by running
+// the server's own CLI over `ssh`. Without it, the CLI and data here are used directly.
+let local = {};
+try { local = JSON.parse(fs.readFileSync(process.env.BOSUN_ACTIVITY_CONFIG || path.join(repo, "activity.local.json"), "utf8")); } catch { /* none */ }
+const mounts = Array.isArray(local.mounts) ? local.mounts.filter((m) => m && typeof m.local === "string" && typeof m.remote === "string") : [];
+const mountOf = (p) => mounts.find((m) => p.startsWith(m.local));
+const onServer = (p) => { const m = mountOf(p); return m ? m.remote + p.slice(m.local.length) : p; };
+const candidates = [process.env.BOSUN_DATA, local.data, path.join(path.dirname(repo), "bosun-x-data"), path.join(home, "bosun-x-data")].filter(Boolean);
 const data = candidates.find((dir) => fs.existsSync(path.join(dir, "projects")));
 if (!data) process.exit(0);
 const agent = typeof payload.agent_id === "string" ? payload.agent_id : null;
@@ -32,7 +44,7 @@ try {
   const map = JSON.parse(fs.readFileSync(path.join(mapDir, "session-assignments.json"), "utf8"));
   assigned = map[`${provider}:${agent || payload.session_id}`];
 } catch { /* no explicit task assignment yet */ }
-const normalizedCwd = typeof payload.cwd === "string" ? payload.cwd.replace(/^\/home\/thrax\/my-server\//, "/home/user/") : "";
+const normalizedCwd = typeof payload.cwd === "string" ? onServer(payload.cwd) : "";
 let project;
 if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(assigned?.project || "")
     && fs.existsSync(path.join(data, "projects", assigned.project, "project.yml"))) {
@@ -61,10 +73,11 @@ const task = assigned?.project === project ? assigned.task : process.env.BOSUN_T
 if (project && /^[A-Z][A-Z0-9]*-\d+(?:\.\d+)?$/.test(task || "")) {
   args.push("--task", task);
 }
-const remote = data.includes("/my-server/");
-const cli = remote ? "/home/user/unified-services/bosun-x/cli.mjs" : path.join(home, "unified-services/bosun-x/cli.mjs");
+const mount = mountOf(data);
+const remote = Boolean(mount?.ssh);
+const cli = path.join(repo, "cli.mjs");
 const commandFor = (eventArgs) => remote
-  ? ["ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "my-server", "env", "BOSUN_DATA=/home/user/unified-services/bosun-x-data", "node", cli, ...eventArgs]]
+  ? ["ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=2", mount.ssh, "env", `BOSUN_DATA=${onServer(data)}`, "node", onServer(cli), ...eventArgs]]
   : ["node", [cli, ...eventArgs]];
 const deliver = (eventArgs) => {
   const [command, commandArgs] = commandFor(eventArgs);
