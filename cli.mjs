@@ -3,13 +3,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import os from "node:os";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
 import { isoTimestamp } from "./lib/time.mjs";
 import { syncStatusBoard, boardIsCurrent, taskPrefixFor, replaceTaskField, resolveTaskRef, taskDisplayKey } from "./lib/board.mjs";
 import { dataDir, projectsDir as projectsDirOf, staleMinutes as staleMinutesOf } from "./lib/config.mjs";
-import { appendEvent } from "./lib/activity.mjs";
+import { appendEvent, assignTask } from "./lib/activity.mjs";
 
 const sydneyIsoTimestamp = isoTimestamp;
 const projectsDir = projectsDirOf();
@@ -98,6 +99,7 @@ function usage(message) {
   bosun event --provider <claude|codex|bosun|job> --session <id> --kind <kind>
               [--project <slug>] [--task <KEY>] [--parent <id>] [--turn <id>]
               [--host <slug>] [--id <event-id>] [--at <ISO time>]
+  bosun assign <TASK-KEY> [--provider <codex|claude>] [--session <id>] [--project <slug>]
   bosun status [slug]
   bosun doctor [--fix]
   bosun setup            # first-run wizard: scaffold the data dir + config.yml
@@ -281,7 +283,8 @@ async function writeCheckpoint(command, slug, options) {
     if (board?.changed) console.log("  STATUS.md task board refreshed");
     if (board?.error) console.log(`  warning: could not refresh STATUS.md board (${board.error.message})`);
     const provider = String(options.agent).toLowerCase();
-    const session = options.session || process.env.BOSUN_SESSION_ID;
+    const session = options.session || process.env.BOSUN_SESSION_ID
+      || (provider === "codex" ? process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID : process.env.CLAUDE_SESSION_ID);
     if (command !== "finish" && session && taskKeys.length && ["codex", "claude"].includes(provider)) {
       try {
         await appendEvent({ provider, session, kind: "assignment", project: slug, task: taskKeys[0] });
@@ -670,6 +673,14 @@ if (process.argv[2] === "dashboard") {
       requireOptions(options, ["provider", "session", "kind"]);
       const result = await appendEvent(options);
       console.log(result.duplicate ? "duplicate" : result.event.id);
+    }
+    else if (command === "assign") {
+      const provider = options.provider || (process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID ? "codex" : process.env.CLAUDE_SESSION_ID ? "claude" : "");
+      const session = options.session || process.env.BOSUN_SESSION_ID
+        || (provider === "codex" ? process.env.CODEX_SESSION_ID || process.env.CODEX_THREAD_ID : process.env.CLAUDE_SESSION_ID);
+      const result = await assignTask({ task: slug, project: options.project, provider, session,
+        host: options.host || os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, "-") });
+      console.log(`${result.provider}:${result.session} → ${result.task} (${result.project})`);
     }
     else if (command === "doctor") await doctor(Boolean(options.fix));
     else if (command === "init") await initRepo(slug);

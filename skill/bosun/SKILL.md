@@ -27,6 +27,14 @@ contract.
 
 ## The loop
 
+- **Assign the live session:** when a user names a full task key, call
+  `activity_assign` (MCP) or `bosun assign <KEY>` from the agent's machine.
+  Bosun resolves the project from the key; the current Codex/Claude session ID
+  is used when available. Repeat when switching tasks or after creating a task.
+  This is activity bookkeeping, separate from task status and handoff state.
+  Never infer ownership from another session's project-wide handoff. Starting
+  in a project directory is optional. If the session ID is unavailable, pass
+  `--provider` and `--session` explicitly or use the private Crew correction UI.
 - **Start:** `handoff_start` / `bosun start <project> --agent <you> --summary <what> --task <KEY>`.
   Always name the task with `--task` (a key like `CR-16`, or a bare number) — it
   moves the task to `in_progress` and keeps the board honest.

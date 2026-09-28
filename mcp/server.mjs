@@ -154,6 +154,26 @@ server.registerTool(
   ({ fix }) => runHandoff(fix ? ["doctor", "--fix"] : ["doctor"]),
 );
 
+server.registerTool(
+  "activity_assign",
+  {
+    title: "Assign this agent session to a task",
+    description: "Use when a task key is named or changes. Bosun resolves the owning project from the task key; no project-folder launch is needed. Pass session if the client does not expose its session ID in the environment.",
+    inputSchema: {
+      task: z.string().describe("full task key, e.g. BX-13"),
+      provider: z.enum(["codex", "claude"]).optional(),
+      session: z.string().optional(),
+      project: z.string().optional().describe("only needed when task prefixes collide"),
+    },
+  },
+  ({ task, provider, session, project }) => runHandoff([
+    "assign", task,
+    ...(provider ? ["--provider", provider] : []),
+    ...(session ? ["--session", session] : []),
+    ...(project ? ["--project", project] : []),
+  ]),
+);
+
 // --- project / task data (direct reads + surgical writes) --------------------
 
 async function projectSummary(slug) {

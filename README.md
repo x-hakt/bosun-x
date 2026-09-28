@@ -141,10 +141,25 @@ On the next session — **before touching anything**:
 bosun resume my-app
 ```
 
-If you use the optional activity hooks, launch an agent with `BOSUN_TASK=API-7`
-to attach its events to a task. When its provider session ID is known, `bosun
-start` or `bosun checkpoint` can also take `--session <id>` to record that
-assignment without guessing from a project-wide handoff.
+For a long-lived session, give the agent a task key and have it register that key
+with Bosun whenever its work changes:
+
+```
+bosun assign API-7
+bosun assign DOC-3                # same agent session, different project
+```
+
+`assign` resolves the project from the task board, reads the current Codex or
+Claude session ID from its environment, and labels later lifecycle events. It
+does not change task status or require launching from a project folder. The
+agent should call it as soon as it knows the task, including after creating a
+new task. `handoff_start`/`checkpoint --task` also register an assignment when
+the current session ID is available. If the agent environment lacks that ID,
+pass `--provider codex|claude --session <id>` or use `activity_assign` via MCP.
+An ambiguous key needs `--project <slug>`. The private Crew page can correct an
+unmapped session with **Set current task**. Prompt text is never sent to the
+activity log. `BOSUN_PROJECT`/`BOSUN_TASK` and project-folder starts remain
+optional fallbacks; `bosun start` or `checkpoint` can also take `--session <id>`.
 
 That prints the bounded snapshot and nothing else. Read it, check `git status`
 and recent commits, and pick up where the last hand left off. Don't load the full

@@ -493,6 +493,57 @@ await test("activity: local Codex hook writes to Bosun data from an unrelated wo
   assert.doesNotMatch(raw, /private prompt/);
 });
 
+await test("activity: task key assigns a long-lived session across projects without changing folders", async () => {
+  const { dir } = await makeDataDir();
+  for (const [slug, prefix] of [["another", "AN"], ["third", "TH"]]) {
+    const project = path.join(dir, "projects", slug);
+    await mkdir(project);
+    await writeFile(path.join(project, "project.yml"), `slug: ${slug}\nkey: ${prefix}\n`);
+    await writeFile(path.join(project, "tasks.yml"), TASKS_FIXTURE);
+  }
+  const hook = fileURLToPath(new URL("../hooks/activity.mjs", import.meta.url));
+  const session = "long-lived-session";
+  const day = new Date().toISOString().slice(0, 10);
+  for (const [key, project] of [["DEMO-1", "demo"], ["AN-2", "another"], ["TH-3", "third"]]) {
+    const assigned = await bosun(["assign", key, "--provider", "codex", "--session", session], dir);
+    assert.equal(assigned.code, 0, assigned.stderr);
+    assert.match(assigned.stdout, new RegExp(`${key} \\(${project}\\)`));
+    const run = spawnSync("node", [hook, "codex"], {
+      cwd: os.tmpdir(), env: { ...process.env, BOSUN_DATA: dir, BOSUN_PROJECT: "demo", BOSUN_TASK: "DEMO-1" },
+      input: JSON.stringify({ hook_event_name: "UserPromptSubmit", session_id: session, cwd: os.tmpdir(), prompt: "private task prompt" }),
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    const events = (await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8")).trim().split("\n").map(JSON.parse);
+    const latest = events.at(-1);
+    assert.equal(latest.kind, "turn_start");
+    assert.equal(latest.project, project);
+    assert.equal(latest.task, key);
+    assert.doesNotMatch(JSON.stringify(events), /private task prompt/);
+  }
+  const unknown = await bosun(["assign", "AN-99", "--provider", "codex", "--session", session], dir);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.stderr, /unknown task/);
+  const map = JSON.parse(await readFile(path.join(dir, ".activity", "session-assignments.json"), "utf8"));
+  assert.deepEqual({ project: map[`codex:${session}`].project, task: map[`codex:${session}`].task }, { project: "third", task: "TH-3" });
+  const other = await bosun(["assign", "DEMO-2", "--provider", "codex", "--session", "other-session"], dir);
+  assert.equal(other.code, 0, other.stderr);
+  const nextMap = JSON.parse(await readFile(path.join(dir, ".activity", "session-assignments.json"), "utf8"));
+  assert.equal(nextMap[`codex:${session}`].task, "TH-3", "a concurrent session cannot take over this session's task");
+  assert.equal(nextMap["codex:other-session"].task, "DEMO-2");
+});
+
+await test("activity: handoff infers the current Codex session from its environment", async () => {
+  const { dir } = await makeDataDir();
+  const env = { ...process.env, BOSUN_DATA: dir, CODEX_SESSION_ID: "env-session", BOSUN_TZ: "UTC" };
+  const run = await execFileAsync("node", [CLI, "start", "demo", "--agent", "Codex", "--summary", "Build", "--task", "DEMO-1"], { env });
+  assert.match(run.stdout, /DEMO-1/);
+  const day = new Date().toISOString().slice(0, 10);
+  const events = (await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8")).trim().split("\n").map(JSON.parse);
+  assert.equal(events.at(-1).session, "env-session");
+  assert.equal(events.at(-1).task, "DEMO-1");
+});
+
 await test("mcp: stdio handshake, tools/list, tools/call", async () => {
   const { dir } = await makeDataDir();
   const server = spawn("node", [MCP], {

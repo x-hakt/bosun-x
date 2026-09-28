@@ -25,9 +25,19 @@ const home = os.homedir();
 const candidates = [process.env.BOSUN_DATA, path.join(home, "my-server/unified-services/bosun-x-data"), path.join(home, "unified-services/bosun-x-data")].filter(Boolean);
 const data = candidates.find((dir) => fs.existsSync(path.join(dir, "projects")));
 if (!data) process.exit(0);
+const agent = typeof payload.agent_id === "string" ? payload.agent_id : null;
+let assigned;
+try {
+  const mapDir = process.env.BOSUN_ACTIVITY_DIR || path.join(data, ".activity");
+  const map = JSON.parse(fs.readFileSync(path.join(mapDir, "session-assignments.json"), "utf8"));
+  assigned = map[`${provider}:${agent || payload.session_id}`];
+} catch { /* no explicit task assignment yet */ }
 const normalizedCwd = typeof payload.cwd === "string" ? payload.cwd.replace(/^\/home\/thrax\/my-server\//, "/home/user/") : "";
 let project;
-if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(process.env.BOSUN_PROJECT || "")
+if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(assigned?.project || "")
+    && fs.existsSync(path.join(data, "projects", assigned.project, "project.yml"))) {
+  project = assigned.project;
+} else if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(process.env.BOSUN_PROJECT || "")
     && fs.existsSync(path.join(data, "projects", process.env.BOSUN_PROJECT, "project.yml"))) {
   project = process.env.BOSUN_PROJECT;
 }
@@ -41,15 +51,15 @@ for (const slug of fs.readdirSync(path.join(data, "projects"))) {
     }
   } catch { /* an incomplete project does not block hook execution */ }
 }
-const agent = typeof payload.agent_id === "string" ? payload.agent_id : null;
 const args = ["event", "--provider", provider, "--session", agent || payload.session_id,
   "--kind", kind, "--id", randomUUID(), "--at", new Date().toISOString(),
   "--host", os.hostname().toLowerCase().replace(/[^a-z0-9-]/g, "-")];
 if (agent) args.push("--parent", payload.session_id);
 if (typeof payload.turn_id === "string") args.push("--turn", payload.turn_id);
 if (project) args.push("--project", project);
-if (project && /^[A-Z][A-Z0-9]*-\d+(?:\.\d+)?$/.test(process.env.BOSUN_TASK || "")) {
-  args.push("--task", process.env.BOSUN_TASK);
+const task = assigned?.project === project ? assigned.task : process.env.BOSUN_TASK;
+if (project && /^[A-Z][A-Z0-9]*-\d+(?:\.\d+)?$/.test(task || "")) {
+  args.push("--task", task);
 }
 const remote = data.includes("/my-server/");
 const cli = remote ? "/home/user/unified-services/bosun-x/cli.mjs" : path.join(home, "unified-services/bosun-x/cli.mjs");
