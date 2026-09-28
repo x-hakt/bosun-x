@@ -164,7 +164,9 @@ bosun doctor --fix           # reconcile the safe cases and regenerate every boa
 
 `doctor` flags a task stuck `in_progress` with no active handoff, a live handoff
 whose task never advanced, and a `STATUS.md` board that fell behind `tasks.yml`.
-`--fix` promotes or resets the stray task and rewrites the boards.
+`--fix` returns an orphaned `in_progress` task to `todo` and rewrites the boards.
+It never infers `done` from a finished handoff; completion requires an explicit
+`finish --task` or task status change.
 
 ## Wiring an agent
 

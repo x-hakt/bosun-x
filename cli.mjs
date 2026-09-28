@@ -457,7 +457,6 @@ async function reconcileTasks(dir, slug, state, now, fix) {
 
   const prefix = await taskPrefixFor(dir, slug);
   const named = new Set((Array.isArray(state.latest?.tasks) ? state.latest.tasks : []).map((key) => Number(String(key).split("-").pop())));
-  const finishForgotTask = !state.active && state.latest?.kind === "finish";
 
   const messages = [];
   let text = raw;
@@ -473,13 +472,10 @@ async function reconcileTasks(dir, slug, state, now, fix) {
       target = "in_progress";
       why = `active handoff names ${key} but it is "${task.status}"`;
     } else if (!state.active && task.status === "in_progress") {
-      if (named.has(task.num) && finishForgotTask) {
-        target = "done";
-        why = `${key} was the finished handoff's task but is still in_progress`;
-      } else {
-        target = "todo";
-        why = `${key} is in_progress but no handoff is working it`;
-      }
+      // A finish without --task carries the key for context but deliberately
+      // does not complete it. Doctor cannot infer completion from that history.
+      target = "todo";
+      why = `${key} is in_progress but no handoff is working it`;
     }
 
     if (!target) continue;

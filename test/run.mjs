@@ -336,6 +336,26 @@ await test("cli: doctor --fix reconciles an orphaned in_progress task", async ()
   assert.match(tasks, /num: 1\n {4}title: Wire the widget\n {4}status: todo/);
 });
 
+await test("cli: doctor --fix never completes a task carried by finish without --task", async () => {
+  const { dir, proj } = await makeDataDir();
+  const start = await bosun(["start", "demo", "--agent", "T", "--summary", "incomplete", "--task", "DEMO-1"], dir);
+  assert.equal(start.code, 0, start.stderr);
+  const finish = await bosun(["finish", "demo", "--agent", "T", "--done", "paused unfinished work", "--state", "unfinished", "--next", "resume later"], dir);
+  assert.equal(finish.code, 0, finish.stderr);
+  assert.match(finish.stdout, /pass --task to mark done/);
+
+  const report = await bosun(["doctor"], dir);
+  assert.equal(report.code, 1);
+  assert.match(report.stdout, /DEMO-1 is in_progress but no handoff is working it \(fix: → todo\)/);
+
+  const fix = await bosun(["doctor", "--fix"], dir);
+  assert.equal(fix.code, 0, fix.stderr);
+  assert.match(fix.stdout, /DEMO-1 is in_progress but no handoff is working it → set todo/);
+  const tasks = await readFile(path.join(proj, "tasks.yml"), "utf8");
+  assert.match(tasks, /num: 1\n {4}title: Wire the widget\n {4}status: todo/);
+  assert.doesNotMatch(tasks, /num: 1\n {4}title: Wire the widget\n {4}status: done/);
+});
+
 await test("cli: --task accepts a dotted sub-task ref; doctor flags an orphan parent (BXD-46)", async () => {
   const { dir, proj } = await makeDataDir();
   const nested = `seq: 4
