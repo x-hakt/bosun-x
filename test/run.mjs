@@ -605,6 +605,7 @@ await test("mcp: stdio handshake, tools/list, tools/call", async () => {
       "handoff_checkpoint",
       "handoff_finish",
       "handoff_doctor",
+      "activity_assign",
       "list_projects",
       "project_brief",
       "list_tasks",
@@ -618,6 +619,12 @@ await test("mcp: stdio handshake, tools/list, tools/call", async () => {
     const payload = call.result?.content?.[0]?.text ?? "";
     assert.match(payload, /"slug": "demo"/);
     assert.match(payload, /"name": "Demo"/);
+    const assignment = await request(4, "tools/call", { name: "activity_assign", arguments: { task: "DEMO-1", provider: "claude", session: "mcp-session" } });
+    assert.match(assignment.result?.content?.[0]?.text ?? "", /DEMO-1 \(demo\)/);
+    const day = new Date().toISOString().slice(0, 10);
+    const events = (await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8")).trim().split("\n").map(JSON.parse);
+    assert.equal(events.at(-1).session, "mcp-session");
+    assert.equal(events.at(-1).task, "DEMO-1");
   } finally {
     server.kill("SIGKILL");
   }
