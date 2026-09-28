@@ -493,6 +493,34 @@ await test("activity: local Codex hook writes to Bosun data from an unrelated wo
   assert.doesNotMatch(raw, /private prompt/);
 });
 
+await test("activity: an explicit task event carries its task into later hook events", async () => {
+  const { dir } = await makeDataDir();
+  const hook = fileURLToPath(new URL("../hooks/activity.mjs", import.meta.url));
+  const session = "inferred-session";
+  const send = (name, extraEnv = {}) => spawnSync("node", [hook, "codex"], {
+    cwd: os.tmpdir(),
+    env: { ...process.env, BOSUN_DATA: dir, ...extraEnv },
+    input: JSON.stringify({ hook_event_name: name, session_id: session, cwd: os.tmpdir(), prompt: "private prompt" }),
+    encoding: "utf8",
+  });
+  const first = send("UserPromptSubmit", { BOSUN_PROJECT: "demo", BOSUN_TASK: "DEMO-1" });
+  assert.equal(first.status, 0, first.stderr);
+  const mapFile = path.join(dir, ".activity", "session-assignments.json");
+  const map = JSON.parse(await readFile(mapFile, "utf8"));
+  assert.deepEqual({ project: map[`codex:${session}`].project, task: map[`codex:${session}`].task }, { project: "demo", task: "DEMO-1" });
+  const next = send("PreToolUse");
+  assert.equal(next.status, 0, next.stderr);
+  const day = new Date().toISOString().slice(0, 10);
+  const events = (await readFile(path.join(dir, ".activity", `${day}.jsonl`), "utf8")).trim().split("\n").map(JSON.parse);
+  assert.equal(events.at(-1).task, "DEMO-1");
+  assert.equal(events.at(-1).project, "demo");
+  assert.doesNotMatch(JSON.stringify(events), /private prompt/);
+  const end = send("SessionEnd");
+  assert.equal(end.status, 0, end.stderr);
+  const cleared = JSON.parse(await readFile(mapFile, "utf8"));
+  assert.equal(cleared[`codex:${session}`], undefined);
+});
+
 await test("activity: task key assigns a long-lived session across projects without changing folders", async () => {
   const { dir } = await makeDataDir();
   for (const [slug, prefix] of [["another", "AN"], ["third", "TH"]]) {
